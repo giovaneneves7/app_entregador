@@ -15,15 +15,20 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 
 class SignInScreen extends StatelessWidget {
-  final FocusNode _cpfFocus = FocusNode();
+  final FocusNode _phoneFocus = FocusNode();
   final FocusNode _passwordFocus = FocusNode();
-  final TextEditingController _cpfController = TextEditingController();
+  final TextEditingController _phoneController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
 
   SignInScreen({super.key});
 
   @override
   Widget build(BuildContext context) {
+
+    String? countryDialCode = Get.find<AuthController>().getUserCountryCode().isNotEmpty ? Get.find<AuthController>().getUserCountryCode()
+        : CountryCode.fromCountryCode(Get.find<SplashController>().configModel!.country!).dialCode;
+    _phoneController.text =  Get.find<AuthController>().getUserNumber();
+    _passwordController.text = Get.find<AuthController>().getUserPassword();
 
     return Scaffold(
       body: SafeArea(child: Center(
@@ -52,14 +57,19 @@ class SignInScreen extends StatelessWidget {
                     child: Column(children: [
 
                       CustomTextFieldWidget(
-                        hintText: 'cpf'.tr,
-                        controller: _cpfController,
-                        focusNode: _cpfFocus,
+                        hintText: 'phone'.tr,
+                        controller: _phoneController,
+                        focusNode: _phoneFocus,
                         nextFocus: _passwordFocus,
-                        inputType: TextInputType.number,
+                        inputType: TextInputType.phone,
                         divider: true,
-                        isPhone: false,
+                        isPhone: true,
                         border: false,
+                        onCountryChanged: (CountryCode countryCode) {
+                          countryDialCode = countryCode.dialCode;
+                        },
+                        countryDialCode: countryDialCode != null ? CountryCode.fromCountryCode(Get.find<SplashController>().configModel!.country!).code
+                            : Get.find<LocalizationController>().locale.countryCode,
                       ),
 
                       CustomTextFieldWidget(
@@ -71,7 +81,9 @@ class SignInScreen extends StatelessWidget {
                         prefixIcon: Icons.lock,
                         isPassword: true,
                         border: false,
-                        onSubmit: (text) => null,
+                        onSubmit: (text) => GetPlatform.isWeb ? _login(
+                          authController, _phoneController, _passwordController, countryDialCode!, context,
+                        ) : null,
                       ),
 
                     ]),
@@ -102,7 +114,7 @@ class SignInScreen extends StatelessWidget {
 
                   !authController.isLoading ? CustomButtonWidget(
                     buttonText: 'sign_in'.tr,
-                    onPressed: () => _login(authController, _cpfController, _passwordController, context),
+                    onPressed: () => _login(authController, _phoneController, _passwordController, countryDialCode!, context),
                   ) : const Center(child: CircularProgressIndicator()),
                   SizedBox(height: Get.find<SplashController>().configModel!.toggleDmRegistration! ? Dimensions.paddingSizeSmall : 0),
 
@@ -128,20 +140,24 @@ class SignInScreen extends StatelessWidget {
     );
   }
 
-  void _login(AuthController authController, TextEditingController cpfText, TextEditingController passText, BuildContext context) async {
-    String cpf = cpfText.text.trim();
+  void _login(AuthController authController, TextEditingController phoneText, TextEditingController passText, String countryCode, BuildContext context) async {
+    String phone = phoneText.text.trim();
     String password = passText.text.trim();
 
-    if (cpf.isEmpty) {
-      showCustomSnackBar('enter_cpf'.tr);
-    //}else if (!phoneValid.isValid) {
-      //showCustomSnackBar('invalid_phone_number'.tr);
+    String numberWithCountryCode = countryCode+phone;
+    PhoneValid phoneValid = await CustomValidatorHelper.isPhoneValid(numberWithCountryCode);
+    numberWithCountryCode = phoneValid.phone;
+
+    if (phone.isEmpty) {
+      showCustomSnackBar('enter_phone_number'.tr);
+    }else if (!phoneValid.isValid) {
+      showCustomSnackBar('invalid_phone_number'.tr);
     }else if (password.isEmpty) {
       showCustomSnackBar('enter_password'.tr);
     }else if (password.length < 6) {
       showCustomSnackBar('password_should_be'.tr);
     }else {
-      /*authController.login(numberWithCountryCode, password).then((status) async {
+      authController.login(numberWithCountryCode, password).then((status) async {
         if (status.isSuccess) {
           if (authController.isActiveRememberMe) {
             authController.saveUserNumberAndPassword(phone, password, countryCode);
@@ -153,7 +169,7 @@ class SignInScreen extends StatelessWidget {
         }else {
           showCustomSnackBar(status.message);
         }
-      });*/
+      });
     }
   }
 }
